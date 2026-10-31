@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { issueSessionToken } = require('./session-store');
 
-const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE || 'OGMYSTRY_1972_VLSS_1_APP_9820172839921';
+const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE || '';
 const failedAttempts = new Map();
 
 exports.handler = async (event) => {
