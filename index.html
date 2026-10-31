@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>og:mystery Values — Value List</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="stars-bg"></div>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+
+  <header class="site-header">
+    <div class="header-inner container">
+      <div class="brand">
+        <a href="#" class="logo">
+          <span class="logo-accent">og:mystery</span>
+          <span class="logo-sub">VALUES</span>
+        </a>
+      </div>
+      <nav class="nav-links">
+        <button class="nav-btn active" data-target="values-view">Pet Values</button>
+        <button class="nav-btn" data-target="updates-view">Update Logs</button>
+        <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="join-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l6 3L12 21l3-6 6-12z"/></svg>
+          JOIN PSX OG
+        </a>
+        <a href="vault-control.html" class="nav-admin-link">Staff Portal</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <section id="values-view" class="view-section active">
+      <div class="hero-banner">
+        <div class="hero-text">
+          <div class="hero-tag">Official Value &amp; Demand Tracker</div>
+          <h1 class="hero-title">og:mystery Values</h1>
+          <p class="hero-desc">Accurate real-time prices, rarity benchmarks, and trading demands curated for Pet Simulator OG.</p>
+        </div>
+      </div>
+
+      <div class="toolbar-card">
+        <div class="search-box">
+          <svg class="icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="pet-search" placeholder="Search by pet name..." autocomplete="off">
+        </div>
+        <div class="filter-group" id="category-filters">
+          <button class="filter-pill active" data-category="all">All Tiers</button>
+        </div>
+        <div class="sort-group">
+          <label for="sort-select" class="sort-label">Sort:</label>
+          <select id="sort-select" class="sort-dropdown">
+            <option value="price-desc">Price: High to Low</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="demand-desc">Demand: Highest</option>
+            <option value="name-asc">Name: A to Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="results-header">
+        <div class="results-count" id="results-count">Showing 0 pets</div>
+      </div>
+
+      <div class="pet-grid" id="pet-grid"></div>
+
+      <div class="empty-state hidden" id="no-results">
+        <div class="empty-emoji">🔍</div>
+        <h3>No pets found</h3>
+        <p>Try searching for a different pet name or changing your tier filter.</p>
+      </div>
+    </section>
+
+    <section id="updates-view" class="view-section">
+      <div class="devblog-layout">
+        <div class="devblog-feed" id="update-logs-list"></div>
+        <div class="devblog-sidebar">
+          <div class="sidebar-game-card">
+            <div class="game-card-banner" id="game-card-banner">
+              <div class="game-card-bg">🐾</div>
+              <div class="game-card-overlay">Pet Simulator OG</div>
+            </div>
+            <div class="game-stats">
+              <div class="game-stat">
+                <span class="gstat-label">Active</span>
+                <span class="gstat-num" id="stat-active">—</span>
+              </div>
+              <div class="game-stat">
+                <span class="gstat-label">Favorites</span>
+                <span class="gstat-num" id="stat-favorites">—</span>
+              </div>
+              <div class="game-stat">
+                <span class="gstat-label">Visits</span>
+                <span class="gstat-num" id="stat-visits">—</span>
+              </div>
+            </div>
+            <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="play-btn">
+              ▶ Play on Roblox
+            </a>
+          </div>
+          <div class="sidebar-toc" id="sidebar-toc">
+            <div class="toc-title">In this update</div>
+            <div class="toc-links" id="toc-links-container"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div class="footer-meta">
+        <div class="footer-logo">og:mystery <span>VALUES</span></div>
+        <p>Official community value lookup and trading demand directory for Pet Simulator OG.</p>
+      </div>
+      <div class="footer-links">
+        <a href="#" class="footer-link" data-target="values-view">Values List</a>
+        <a href="#" class="footer-link" data-target="updates-view">Changelog</a>
+        <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="join-btn join-btn-footer">JOIN PSX OG</a>
+        <a href="vault-control.html" class="footer-link">Staff Entrance</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
