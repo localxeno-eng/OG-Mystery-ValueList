@@ -326,6 +326,7 @@ function renderLogsList() {
           <div class="log-section-badges">${sectionBadges}</div>
         </div>
         <div class="table-actions">
+          <button class="icon-btn" onclick="shareLog('${log.slug || log.id}')" title="Copy share link">🔗</button>
           <button class="icon-btn" onclick="openEditLogModal('${log.id}')" title="Edit">✏️</button>
           <button class="icon-btn delete" onclick="deleteLog('${log.id}')" title="Delete">🗑️</button>
         </div>
@@ -605,6 +606,17 @@ function buildItemEditorHtml(si, ii, item) {
       <div style="flex:1;">
         <input type="text" class="form-input item-heading" data-si="${si}" data-ii="${ii}" value="${escapeHtml(item.heading || '')}" placeholder="Heading (e.g. Haunted Island)">
         <textarea class="form-textarea item-body" data-si="${si}" data-ii="${ii}" placeholder="Description text..." style="margin-top:6px;min-height:62px;">${escapeHtml(item.body || '')}</textarea>
+        <div class="item-image-upload" style="margin-top:8px;">
+          <label class="file-drop-area item-drop-area" style="padding:10px;">
+            <input type="file" class="file-input-hidden item-file" data-si="${si}" data-ii="${ii}" accept="image/*">
+            <div class="upload-text" style="font-size:0.78rem;">📎 Drop or click to add image</div>
+          </label>
+          <div class="upload-preview-container item-preview-container ${item.image ? '' : 'hidden'}" data-si="${si}" data-ii="${ii}" style="width:70px;height:70px;margin-top:6px;display:${item.image ? 'inline-flex' : 'none'};">
+            <img class="item-preview-img" data-si="${si}" data-ii="${ii}" src="${escapeHtml(item.image || '')}" alt="" class="upload-preview-img">
+            <button type="button" class="remove-preview-btn item-remove-img" data-si="${si}" data-ii="${ii}" title="Remove image">✕</button>
+          </div>
+          <input type="hidden" class="item-image-value" data-si="${si}" data-ii="${ii}" value="${escapeHtml(item.image || '')}">
+        </div>
       </div>
       <button type="button" class="icon-btn delete remove-item-btn" data-si="${si}" data-ii="${ii}" title="Remove item">✕</button>
     </div>
@@ -616,9 +628,9 @@ function openLogModal(logToEdit = null) {
   let sections = isEdit && logToEdit.sections && logToEdit.sections.length
     ? JSON.parse(JSON.stringify(logToEdit.sections))
     : [
-        { type: 'added', label: 'Added', items: [{ heading: '', body: '' }] },
-        { type: 'changes', label: 'Changes', items: [{ heading: '', body: '' }] },
-        { type: 'fixes', label: 'Fixes', items: [{ heading: '', body: '' }] }
+        { type: 'added', label: 'Added', items: [{ heading: '', body: '', image: '' }] },
+        { type: 'changes', label: 'Changes', items: [{ heading: '', body: '', image: '' }] },
+        { type: 'fixes', label: 'Fixes', items: [{ heading: '', body: '', image: '' }] }
       ];
 
   const logData = logToEdit || {
@@ -626,7 +638,8 @@ function openLogModal(logToEdit = null) {
     title: '',
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     summary: '',
-    readTime: '3 min read'
+    readTime: '3 min read',
+    slug: ''
   };
 
   const renderEditor = () => {
@@ -657,6 +670,10 @@ function openLogModal(logToEdit = null) {
           <input type="text" id="m-log-readtime" class="form-input" value="${escapeHtml(logData.readTime || '')}" placeholder="e.g. 3 min read">
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label">URL Slug</label>
+        <input type="text" id="m-log-slug" class="form-input" value="${escapeHtml(logData.slug || '')}" placeholder="e.g. hell (→ /logs/hell)">
+      </div>
 
       <div style="margin-top:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -677,19 +694,21 @@ function openLogModal(logToEdit = null) {
   renderEditor();
 
   document.getElementById('add-section-btn').addEventListener('click', () => {
-    sections.push({ type: 'added', label: 'Added', items: [{ heading: '', body: '' }] });
+    sections.push({ type: 'added', label: 'Added', items: [{ heading: '', body: '', image: '' }] });
     renderEditor();
   });
 
   document.getElementById('log-form').addEventListener('submit', e => {
     e.preventDefault();
     collectSectionsFromDOM(sections);
+    const rawSlug = document.getElementById('m-log-slug').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const updatedLog = {
       id: logData.id,
       title: document.getElementById('m-log-title').value.trim(),
       date: document.getElementById('m-log-date').value.trim(),
       readTime: document.getElementById('m-log-readtime').value.trim(),
       summary: document.getElementById('m-log-summary').value.trim(),
+      slug: rawSlug || logData.id,
       sections: sections.filter(s => s.items.some(i => i.heading || i.body))
     };
 
@@ -712,6 +731,11 @@ window.openEditLogModal = function(logId) {
   if (found) openLogModal(found);
 };
 
+window.shareLog = function(slug) {
+  const url = `${location.origin}/logs/${slug}`;
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied: ' + url));
+};
+
 function collectSectionsFromDOM(sections) {
   sections.forEach((sec, si) => {
     const typeEl = document.querySelector(`.sec-type[data-si="${si}"]`);
@@ -723,8 +747,10 @@ function collectSectionsFromDOM(sections) {
     sec.items.forEach((item, ii) => {
       const hEl = document.querySelector(`.item-heading[data-si="${si}"][data-ii="${ii}"]`);
       const bEl = document.querySelector(`.item-body[data-si="${si}"][data-ii="${ii}"]`);
+      const imgEl = document.querySelector(`.item-image-value[data-si="${si}"][data-ii="${ii}"]`);
       if (hEl) item.heading = hEl.value.trim();
       if (bEl) item.body = bEl.value.trim();
+      if (imgEl) item.image = imgEl.value;
     });
   });
 }
@@ -743,7 +769,7 @@ function attachSectionEditorListeners(sections, renderEditor) {
     btn.addEventListener('click', () => {
       const si = parseInt(btn.dataset.si);
       collectSectionsFromDOM(sections);
-      sections[si].items.push({ heading: '', body: '' });
+      sections[si].items.push({ heading: '', body: '', image: '' });
       renderEditor();
     });
   });
@@ -754,8 +780,56 @@ function attachSectionEditorListeners(sections, renderEditor) {
       const ii = parseInt(btn.dataset.ii);
       collectSectionsFromDOM(sections);
       sections[si].items.splice(ii, 1);
-      if (!sections[si].items.length) sections[si].items.push({ heading: '', body: '' });
+      if (!sections[si].items.length) sections[si].items.push({ heading: '', body: '', image: '' });
       renderEditor();
+    });
+  });
+
+  document.querySelectorAll('.item-file').forEach(input => {
+    input.addEventListener('change', async (e) => {
+      const si = input.dataset.si, ii = input.dataset.ii;
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const base64 = evt.target.result;
+        const previewContainer = document.querySelector(`.item-preview-container[data-si="${si}"][data-ii="${ii}"]`);
+        const previewImg = document.querySelector(`.item-preview-img[data-si="${si}"][data-ii="${ii}"]`);
+        const hiddenVal = document.querySelector(`.item-image-value[data-si="${si}"][data-ii="${ii}"]`);
+        previewImg.src = base64;
+        previewContainer.classList.remove('hidden');
+        previewContainer.style.display = 'inline-flex';
+        hiddenVal.value = base64;
+
+        try {
+          const uploadRes = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${vaultState.sessionToken}`
+            },
+            body: JSON.stringify({ filename: file.name, base64 })
+          });
+          const uploadJson = await uploadRes.json();
+          if (uploadJson.success && uploadJson.path) {
+            hiddenVal.value = uploadJson.path;
+          }
+        } catch (err) {}
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+  document.querySelectorAll('.item-remove-img').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const si = btn.dataset.si, ii = btn.dataset.ii;
+      const hiddenVal = document.querySelector(`.item-image-value[data-si="${si}"][data-ii="${ii}"]`);
+      const previewContainer = document.querySelector(`.item-preview-container[data-si="${si}"][data-ii="${ii}"]`);
+      const fileInput = document.querySelector(`.item-file[data-si="${si}"][data-ii="${ii}"]`);
+      hiddenVal.value = '';
+      previewContainer.classList.add('hidden');
+      previewContainer.style.display = 'none';
+      fileInput.value = '';
     });
   });
 }
