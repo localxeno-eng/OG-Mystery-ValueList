@@ -1,6 +1,6 @@
 export default {
   "settings": {
-    "gameBannerUrl": "mystery-og-banner.webp",
+    "gameBannerUrl": "/mystery-og-banner.webp",
     "gameBannerEmoji": "\ud83d\udc3e",
     "activeUpdateBadge": "Update 3: Haunted Island"
   },
