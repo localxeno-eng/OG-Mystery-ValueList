@@ -69,7 +69,8 @@ function updateBannerImage() {
   const bannerEl = document.getElementById('game-card-banner');
   if (!bannerEl) return;
 
-  const url = appState.settings.gameBannerUrl?.trim();
+  let url = appState.settings.gameBannerUrl?.trim();
+  if (url && !/^(https?:)?\//.test(url)) url = '/' + url;
   const emoji = appState.settings.gameBannerEmoji || '🐾';
 
   if (url) {
@@ -378,7 +379,18 @@ async function refreshDataSilently() {
   } catch (err) {}
 }
 
+function preRouteByUrl() {
+  if (!location.pathname.startsWith('/logs/')) return;
+  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+  const viewEl = document.getElementById('updates-view');
+  if (viewEl) viewEl.classList.add('active');
+  const navMatch = document.querySelector('.nav-btn[data-target="updates-view"]');
+  if (navMatch) navMatch.classList.add('active');
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  preRouteByUrl();
   loadData();
   setInterval(refreshDataSilently, 20000);
 });
