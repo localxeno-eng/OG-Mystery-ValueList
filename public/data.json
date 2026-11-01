@@ -1,6 +1,6 @@
 {
   "settings": {
-    "gameBannerUrl": "mystery-og-banner.webp",
+    "gameBannerUrl": "/mystery-og-banner.webp",
     "gameBannerEmoji": "🐾",
     "activeUpdateBadge": "Update 3: Haunted Island"
   },
