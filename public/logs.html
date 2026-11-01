@@ -1,157 +1,91 @@
-const SECTION_COLORS = { added: '#fbbf24', changes: '#38bdf8', fixes: '#f87171' };
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>og:mystery Values — Update Logs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="stars-bg"></div>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
 
-let updateLogs = [];
-
-function getSlugFromUrl() {
-  const match = location.pathname.match(/^\/logs\/([^/]+)\/?$/);
-  return match ? decodeURIComponent(match[1]).toLowerCase() : null;
-}
-
-async function loadLogs() {
-  try {
-    const res = await fetch('/api/get-data');
-    const data = await res.json();
-    updateLogs = data.updateLogs || [];
-    applySettings(data.settings || {});
-  } catch (err) {
-    updateLogs = [];
-  }
-
-  renderLog();
-  fetchRobloxStats();
-  setInterval(fetchRobloxStats, 60000);
-}
-
-function applySettings(settings) {
-  const bannerEl = document.getElementById('game-card-banner');
-  if (!bannerEl) return;
-
-  let url = settings.gameBannerUrl?.trim();
-  if (url && !/^(https?:)?\//.test(url)) url = '/' + url;
-  const emoji = settings.gameBannerEmoji || '🐾';
-
-  if (url) {
-    bannerEl.innerHTML = `
-      <img src="${url}" alt="Pet Simulator OG" class="game-thumb" onerror="this.style.display='none';document.getElementById('game-card-banner').querySelector('.game-card-bg').style.display='flex';">
-      <div class="game-card-bg" style="display:none;">${emoji}</div>
-      <div class="game-card-overlay">Pet Simulator OG</div>
-    `;
-  } else {
-    bannerEl.innerHTML = `
-      <div class="game-card-bg">${emoji}</div>
-      <div class="game-card-overlay">Pet Simulator OG</div>
-    `;
-  }
-}
-
-async function fetchRobloxStats() {
-  try {
-    const res = await fetch('/api/roblox-stats');
-    const data = await res.json();
-    if (data.success) {
-      setStatDisplay('stat-active', data.active);
-      setStatDisplay('stat-favorites', data.favorites);
-      setStatDisplay('stat-visits', data.visits);
-    }
-  } catch (e) {}
-}
-
-function setStatDisplay(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value || '—';
-}
-
-function renderLog() {
-  const container = document.getElementById('update-logs-list');
-  const tocContainer = document.getElementById('toc-links-container');
-  if (!container) return;
-
-  if (!updateLogs.length) {
-    container.innerHTML = `<div class="empty-state" style="margin:0"><div class="empty-emoji">📋</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
-    return;
-  }
-
-  const slug = getSlugFromUrl();
-  const activeLog = updateLogs.find(l => (l.slug || l.id).toLowerCase() === slug) || updateLogs[0];
-
-  container.innerHTML = `
-    <div class="devblog-article">
-      <div class="devblog-meta">
-        <span class="devblog-game-tag">🐾 Pet Simulator OG</span>
-        <button class="devblog-share-btn" id="devblog-share-btn" title="Copy share link">🔗 Share</button>
-      </div>
-      <h1 class="devblog-title">${escapeHtml(activeLog.title)}</h1>
-      <div class="devblog-byline">
-        <span>${escapeHtml(activeLog.date)}</span>
-        ${activeLog.readTime ? `<span class="byline-sep">|</span><span>${escapeHtml(activeLog.readTime)}</span>` : ''}
-      </div>
-      ${activeLog.summary ? `<p class="devblog-summary">${escapeHtml(activeLog.summary)}</p>` : ''}
-      <div class="devblog-sections">
-        ${(activeLog.sections || []).map(sec => renderSection(sec)).join('')}
-      </div>
-    </div>
-    <div class="devblog-nav">
-      ${updateLogs.map(log => `
-        <a class="devblog-nav-item ${log.id === activeLog.id ? 'active' : ''}" href="/logs/${encodeURIComponent(log.slug || log.id)}">
-          <span class="devblog-nav-title">${escapeHtml(log.title)}</span>
-          <span class="devblog-nav-date">${escapeHtml(log.date)}</span>
+  <header class="site-header">
+    <div class="header-inner container">
+      <div class="brand">
+        <a href="/" class="logo">
+          <span class="logo-accent">og:mystery</span>
+          <span class="logo-sub">VALUES</span>
         </a>
-      `).join('')}
+      </div>
+      <nav class="nav-links">
+        <a href="/" class="nav-btn">Pet Values</a>
+        <a href="/logs" class="nav-btn active">Update Logs</a>
+        <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="join-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l6 3L12 21l3-6 6-12z"/></svg>
+          JOIN PSX OG
+        </a>
+        <a href="/vault-control.html" class="nav-admin-link">Staff Portal</a>
+      </nav>
     </div>
-  `;
+  </header>
 
-  const newUrl = `/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
-  if (location.pathname !== newUrl) {
-    history.replaceState(null, '', newUrl);
-  }
+  <main class="container main-content">
+    <section id="updates-view" class="view-section active">
+      <div class="devblog-layout">
+        <div class="devblog-feed" id="update-logs-list"></div>
+        <div class="devblog-sidebar">
+          <div class="sidebar-game-card">
+            <div class="game-card-banner" id="game-card-banner">
+              <div class="game-card-bg">🐾</div>
+              <div class="game-card-overlay">Pet Simulator OG</div>
+            </div>
+            <div class="game-stats">
+              <div class="game-stat">
+                <span class="gstat-label">Active</span>
+                <span class="gstat-num" id="stat-active">—</span>
+              </div>
+              <div class="game-stat">
+                <span class="gstat-label">Favorites</span>
+                <span class="gstat-num" id="stat-favorites">—</span>
+              </div>
+              <div class="game-stat">
+                <span class="gstat-label">Visits</span>
+                <span class="gstat-num" id="stat-visits">—</span>
+              </div>
+            </div>
+            <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="play-btn">
+              ▶ Play on Roblox
+            </a>
+          </div>
+          <div class="sidebar-toc" id="sidebar-toc">
+            <div class="toc-title">In this update</div>
+            <div class="toc-links" id="toc-links-container"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 
-  if (tocContainer) {
-    tocContainer.innerHTML = (activeLog.sections || []).map(sec => `
-      <a class="toc-link" href="#" style="color:${SECTION_COLORS[sec.type] || '#94a3b8'}">
-        ${escapeHtml(sec.label || sec.type)}
-      </a>
-    `).join('');
-  }
-
-  const shareBtn = document.getElementById('devblog-share-btn');
-  if (shareBtn) {
-    shareBtn.addEventListener('click', () => {
-      const url = `${location.origin}/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(() => {
-          shareBtn.textContent = '✅ Copied!';
-          setTimeout(() => { shareBtn.textContent = '🔗 Share'; }, 1800);
-        });
-      }
-    });
-  }
-}
-
-function renderSection(sec) {
-  const color = SECTION_COLORS[sec.type] || '#94a3b8';
-  const items = (sec.items || []).map(item => `
-    <div class="blog-section-item">
-      ${item.heading ? `<h4 class="blog-item-heading">${escapeHtml(item.heading)}</h4>` : ''}
-      ${item.body ? `<p class="blog-item-body">${escapeHtml(item.body)}</p>` : ''}
-      ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.heading || '')}" class="blog-item-image" loading="lazy">` : ''}
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div class="footer-meta">
+        <div class="footer-logo">og:mystery <span>VALUES</span></div>
+        <p>Official community value lookup and trading demand directory for Pet Simulator OG.</p>
+      </div>
+      <div class="footer-links">
+        <a href="/" class="footer-link">Values List</a>
+        <a href="/logs" class="footer-link">Changelog</a>
+        <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="join-btn join-btn-footer">JOIN PSX OG</a>
+        <a href="/vault-control.html" class="footer-link">Staff Entrance</a>
+      </div>
     </div>
-  `).join('');
-  return `
-    <div class="blog-section" data-type="${sec.type}">
-      <h2 class="blog-section-label" style="color:${color}">${escapeHtml(sec.label || sec.type)}</h2>
-      <div class="blog-section-items">${items}</div>
-    </div>
-  `;
-}
+  </footer>
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-window.addEventListener('DOMContentLoaded', loadLogs);
+  <script src="/logs.js"></script>
+</body>
+</html>
