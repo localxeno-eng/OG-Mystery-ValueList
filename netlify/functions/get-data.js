@@ -2,6 +2,7 @@ const { getStore } = require('@netlify/blobs');
 const seedData = require('./lib/seed-data');
 
 function openStore() {
+  console.log('SITE_ID:', process.env.NETLIFY_SITE_ID, 'TOKEN_LEN:', (process.env.BLOBS_TOKEN || '').length);
   if (process.env.NETLIFY_SITE_ID && process.env.BLOBS_TOKEN) {
     return getStore({
       name: 'psog-site-data',
@@ -31,6 +32,7 @@ exports.handler = async () => {
       body: JSON.stringify(record)
     };
   } catch (err) {
+    console.log('BLOBS ERROR:', err.message);
     return {
       statusCode: 200,
       headers: {
