@@ -216,6 +216,12 @@ export default {
       return json({ success: false, error: 'Not found' }, 404);
     }
 
+    // Bare /logs or /logs/ with no slug: there's nothing to show, send
+    // them home instead of letting it fall through to raw asset serving.
+    if (path === '/logs' || path === '/logs/') {
+      return Response.redirect(new URL('/', url), 302);
+    }
+
     // Everything else: serve the static site. /logs/<slug> gets its own
     // standalone page (logs.html) instead of routing through index.html.
     if (path.startsWith('/logs/')) {
