@@ -6,7 +6,7 @@
   <title>Staff Vault — og:mystery Values Control Room</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/vault.css">
 </head>
@@ -16,6 +16,10 @@
   <header class="site-header">
     <div class="header-inner container">
       <div class="brand">
+        <a href="/" class="big-games-logo-box">
+          <span>BIG</span>
+          <span>GAMES</span>
+        </a>
         <a href="/" class="logo">
           <span class="logo-accent">og:mystery</span>
           <span class="logo-sub">VAULT</span>
@@ -26,6 +30,7 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Light/Dark Theme">🌙</button>
         <a href="/" class="nav-btn">← Public Site</a>
         <a href="https://www.roblox.com/games/72561942097633/MYSTERY-OG" target="_blank" rel="noopener" class="join-btn">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3L3 10.5l6 3L12 21l3-6 6-12z"/></svg>
@@ -69,7 +74,7 @@
       <div class="dash-topbar">
         <div>
           <h2 class="dash-greeting">Values Command Center</h2>
-          <p class="dash-sub">Direct control over Pet Simulator OG value benchmarks, categories, and logs.</p>
+          <p class="dash-sub">Direct control over Pet Simulator OG value benchmarks, categories, dev blog posts, and site appearance.</p>
         </div>
         <div class="dash-session-chip">
           <span>Inactivity Timeout:</span>
@@ -80,7 +85,7 @@
       <div class="dash-tabs">
         <button class="dash-tab active" data-tab="tab-pets">Manage Pets</button>
         <button class="dash-tab" data-tab="tab-categories">Manage Tiers</button>
-        <button class="dash-tab" data-tab="tab-logs">Manage Update Logs</button>
+        <button class="dash-tab" data-tab="tab-logs">Manage Dev Blog</button>
         <button class="dash-tab" data-tab="tab-sync">Backup &amp; Export</button>
         <button class="dash-tab" data-tab="tab-settings">Site Settings</button>
       </div>
@@ -125,9 +130,9 @@
         <div class="panel-header">
           <div>
             <h3>Dev &amp; Update Logs</h3>
-            <p>Post structured changelogs with Added / Changes / Fixes sections, just like the BigGames dev blog.</p>
+            <p>Post BIG Games styled dev blogs with cover banners, custom slugs, and patch sections.</p>
           </div>
-          <button id="add-log-btn" class="action-btn primary">+ Post Log</button>
+          <button id="add-log-btn" class="action-btn primary">+ Post Dev Blog</button>
         </div>
         <div class="logs-admin-list" id="logs-admin-container"></div>
       </div>
