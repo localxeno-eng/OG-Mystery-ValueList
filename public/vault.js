@@ -110,10 +110,29 @@ async function saveVaultData() {
   return ok;
 }
 
+function initTheme() {
+  const saved = localStorage.getItem('og_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = saved === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('og_theme', next);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = next === 'dark' ? '☀️' : '🌙';
+}
+
 function initVault() {
+  initTheme();
   setupGate();
   setupTabs();
   setupModals();
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
 }
 
 function setupGate() {
@@ -132,88 +151,90 @@ function setupGate() {
     errorEl.classList.add('hidden');
     submitBtn.textContent = 'Verifying...';
 
-    const res = await checkLocalOrRemoteVerify(code);
+    const result = await checkLocalOrRemoteVerify(code);
 
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Authorize Entry';
-
-    if (res.success) {
+    if (result.success) {
       vaultState.authenticated = true;
-      vaultState.sessionToken = res.token;
-      codeInput.value = '';
-      enterDashboard();
+      vaultState.sessionToken = result.token;
+      sessionStorage.setItem('vault_auth', '1');
+      sessionStorage.setItem('vault_token', result.token);
+      showDashboard();
+      startInactivityTimer();
     } else {
-      errorEl.textContent = res.error || 'Authorization denied. Access code incorrect.';
+      errorEl.textContent = result.error || 'Access denied. Incorrect key.';
       errorEl.classList.remove('hidden');
       codeInput.value = '';
       codeInput.focus();
     }
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Authorize Entry';
   });
 
-  lockBtn.addEventListener('click', () => exitDashboard('Session closed by staff.'));
+  lockBtn.addEventListener('click', lockVault);
 }
 
-function enterDashboard() {
+function showDashboard() {
   document.getElementById('gate-screen').classList.add('hidden');
   document.getElementById('dashboard-screen').classList.remove('hidden');
   document.getElementById('lock-btn').classList.remove('hidden');
 
-  const indicator = document.getElementById('vault-status-indicator');
-  const statusText = document.getElementById('vault-status-text');
-  indicator.classList.add('unlocked');
-  statusText.textContent = 'AUTHORIZED';
-  indicator.querySelector('.status-indicator-dot').classList.add('unlocked');
+  const badge = document.getElementById('vault-status-indicator');
+  const badgeText = document.getElementById('vault-status-text');
+  badge.classList.add('unlocked');
+  badge.querySelector('.status-indicator-dot').classList.add('unlocked');
+  badgeText.textContent = 'UNLOCKED';
 
-  loadVaultData().then(() => renderAllPanels());
-  startInactivityMonitor();
-  showToast('Vault unlocked. Staff session initiated.');
+  loadVaultData().then(() => {
+    renderAllPanels();
+  });
 }
 
-function exitDashboard(reason) {
+function lockVault() {
   vaultState.authenticated = false;
   vaultState.sessionToken = null;
+  sessionStorage.removeItem('vault_auth');
+  sessionStorage.removeItem('vault_token');
   clearInterval(vaultState.inactivityTimer);
 
   document.getElementById('gate-screen').classList.remove('hidden');
   document.getElementById('dashboard-screen').classList.add('hidden');
   document.getElementById('lock-btn').classList.add('hidden');
 
-  const indicator = document.getElementById('vault-status-indicator');
-  const statusText = document.getElementById('vault-status-text');
-  indicator.classList.remove('unlocked');
-  statusText.textContent = 'LOCKED';
-  indicator.querySelector('.status-indicator-dot').classList.remove('unlocked');
+  const badge = document.getElementById('vault-status-indicator');
+  const badgeText = document.getElementById('vault-status-text');
+  badge.classList.remove('unlocked');
+  badge.querySelector('.status-indicator-dot').classList.remove('unlocked');
+  badgeText.textContent = 'LOCKED';
 
-  if (reason) {
-    const errorEl = document.getElementById('gate-error');
-    errorEl.textContent = reason;
-    errorEl.classList.remove('hidden');
+  const codeInput = document.getElementById('gate-code');
+  if (codeInput) {
+    codeInput.value = '';
+    codeInput.focus();
   }
 }
 
-function startInactivityMonitor() {
+function startInactivityTimer() {
   vaultState.secondsLeft = INACTIVITY_TIMEOUT_SEC;
   updateTimerDisplay();
 
-  const resetActivity = () => {
-    if (!vaultState.authenticated) return;
-    vaultState.secondsLeft = INACTIVITY_TIMEOUT_SEC;
-    updateTimerDisplay();
-  };
-
-  ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
-    window.addEventListener(evt, resetActivity, { passive: true });
-  });
-
   clearInterval(vaultState.inactivityTimer);
   vaultState.inactivityTimer = setInterval(() => {
-    if (!vaultState.authenticated) return;
     vaultState.secondsLeft--;
     updateTimerDisplay();
     if (vaultState.secondsLeft <= 0) {
-      exitDashboard('Session timed out due to 15 minutes of inactivity.');
+      lockVault();
+      alert('Vault locked due to 15 minutes of inactivity.');
     }
   }, 1000);
+
+  const resetTimer = () => {
+    if (vaultState.authenticated) vaultState.secondsLeft = INACTIVITY_TIMEOUT_SEC;
+  };
+
+  ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(ev => {
+    window.addEventListener(ev, resetTimer, { passive: true });
+  });
 }
 
 function updateTimerDisplay() {
@@ -230,7 +251,8 @@ function setupTabs() {
       document.querySelectorAll('.dash-tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.dash-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
-      const panel = document.getElementById(tab.dataset.tab);
+      const panelId = tab.dataset.tab;
+      const panel = document.getElementById(panelId);
       if (panel) panel.classList.add('active');
     });
   });
@@ -247,17 +269,23 @@ function renderPetsTable() {
   const tbody = document.getElementById('pets-table-body');
   if (!tbody) return;
 
+  if (!vaultState.pets.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-dim);">No pets yet. Click "+ Add Pet" to create one.</td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = vaultState.pets.map(pet => {
-    const cat = vaultState.categories.find(c => c.id === pet.category) || { name: pet.category };
-    const thumb = pet.image ? `<img src="${pet.image}" class="table-thumb" alt="${escapeHtml(pet.name)}">` : '<div class="table-thumb"></div>';
+    const cat = vaultState.categories.find(c => c.id === pet.category) || { name: pet.category, badgeColor: '#94a3b8' };
+    const thumb = pet.image ? `<img src="${pet.image}" class="table-thumb" alt="${escapeHtml(pet.name)}">` : '<div class="table-thumb-placeholder">🐾</div>';
+
     return `
-      <tr>
+      <tr data-id="${pet.id}">
         <td>${thumb}</td>
         <td><strong>${escapeHtml(pet.name)}</strong></td>
-        <td><span class="tier-tag">${escapeHtml(cat.name)}</span></td>
-        <td style="color:#38bdf8;font-weight:700;">${escapeHtml(pet.priceDisplay || String(pet.price))}</td>
-        <td style="color:#fbbf24;font-weight:700;">${escapeHtml(formatVaultDemand(pet.demand, pet.demandRating))}</td>
-        <td>
+        <td><span class="badge" style="background:${cat.badgeColor}22;color:${cat.badgeColor};border:1px solid ${cat.badgeColor}44;">${escapeHtml(cat.name)}</span></td>
+        <td><span class="price-pill">${escapeHtml(pet.priceDisplay || formatCurrency(pet.price))}</span></td>
+        <td><span class="demand-pill">${escapeHtml(formatDemand(pet.demand, pet.demandRating))}</span></td>
+        <td class="actions-col">
           <div class="table-actions">
             <button class="icon-btn" onclick="openEditPetModal('${pet.id}')" title="Edit">✏️</button>
             <button class="icon-btn delete" onclick="deletePet('${pet.id}')" title="Delete">🗑️</button>
@@ -268,39 +296,30 @@ function renderPetsTable() {
   }).join('');
 }
 
-function formatVaultDemand(demand, rating) {
-  if (typeof demand === 'string' && demand.includes('/')) return demand;
-  const num = rating !== undefined ? rating : (Number(demand) || 5);
-  return `${num}/10`;
-}
-
-function parseDemandNumber(val) {
-  if (typeof val === 'number') return Math.min(10, Math.max(1, val));
-  if (typeof val === 'string') {
-    const match = val.match(/\d+/);
-    if (match) return Math.min(10, Math.max(1, parseInt(match[0], 10)));
-  }
-  return 5;
-}
-
 function renderCategoriesList() {
   const container = document.getElementById('categories-list-container');
   if (!container) return;
 
-  container.innerHTML = vaultState.categories.map(cat => `
-    <div class="category-card">
-      <div class="category-meta">
-        <span class="category-swatch" style="background:${cat.badgeColor || '#a855f7'}"></span>
-        <div>
-          <div class="category-name">${escapeHtml(cat.name)}</div>
-          <div class="category-id">id: ${escapeHtml(cat.id)}</div>
+  container.innerHTML = vaultState.categories.map(cat => {
+    const count = vaultState.pets.filter(p => p.category === cat.id).length;
+    return `
+      <div class="category-card" data-id="${cat.id}">
+        <div class="cat-header">
+          <span class="cat-color-dot" style="background:${cat.badgeColor};"></span>
+          <h4 class="cat-name">${escapeHtml(cat.name)}</h4>
+          <span class="cat-badge-preview" style="background:${cat.badgeColor}22;color:${cat.badgeColor};border:1px solid ${cat.badgeColor}44;">Preview</span>
+        </div>
+        <div class="cat-meta">
+          <span>Slug: <code>${escapeHtml(cat.id)}</code></span>
+          <span>${count} ${count === 1 ? 'pet' : 'pets'}</span>
+        </div>
+        <div class="cat-actions">
+          <button class="icon-btn" onclick="openEditCategoryModal('${cat.id}')" title="Edit">✏️</button>
+          <button class="icon-btn delete" onclick="deleteCategory('${cat.id}')" title="Delete">🗑️</button>
         </div>
       </div>
-      <div class="table-actions">
-        <button class="icon-btn delete" onclick="deleteCategory('${cat.id}')" title="Delete">🗑️</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderLogsList() {
@@ -308,7 +327,7 @@ function renderLogsList() {
   if (!container) return;
 
   if (!vaultState.updateLogs.length) {
-    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-dim);">No update logs yet. Click "+ Post Log" to create one.</div>`;
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-dim);">No update logs yet. Click "+ Post Dev Blog" to create one.</div>`;
     return;
   }
 
@@ -376,11 +395,9 @@ function openPetModal(petToEdit = null) {
     image: ''
   };
 
-  const currentDemandNum = parseDemandNumber(pet.demandRating !== undefined ? pet.demandRating : pet.demand);
-
-  const categoryOptions = vaultState.categories.map(c =>
-    `<option value="${c.id}" ${pet.category === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
-  ).join('');
+  const catOptions = vaultState.categories.map(c => `
+    <option value="${c.id}" ${c.id === pet.category ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+  `).join('');
 
   let selectedImageData = pet.image || '';
 
@@ -388,32 +405,36 @@ function openPetModal(petToEdit = null) {
     <form id="pet-form">
       <div class="form-group">
         <label class="form-label">Pet Name</label>
-        <input type="text" id="m-pet-name" class="form-input" required value="${escapeHtml(pet.name)}" placeholder="e.g. Huge Haunted Cat">
+        <input type="text" id="m-pet-name" class="form-input" required value="${escapeHtml(pet.name)}" placeholder="e.g. Huge Cat">
       </div>
-      <div class="form-group">
-        <label class="form-label">Category / Tier</label>
-        <select id="m-pet-category" class="form-select">${categoryOptions}</select>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Category Tier</label>
+          <select id="m-pet-category" class="form-select">${catOptions}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Display Price</label>
+          <input type="text" id="m-pet-price-display" class="form-input" value="${escapeHtml(pet.priceDisplay || '10M')}" placeholder="e.g. 10M, 500K">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Price Numeric (for sorting)</label>
-        <input type="number" id="m-pet-price" class="form-input" required value="${pet.price}" placeholder="e.g. 50000000">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Price Display String</label>
-        <input type="text" id="m-pet-display" class="form-input" required value="${escapeHtml(pet.priceDisplay)}" placeholder="e.g. 50M, 2.5B">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Demand Score (1 - 10)</label>
-        <input type="number" id="m-pet-demand" class="form-input" min="1" max="10" required value="${currentDemandNum}" placeholder="e.g. 7 (displayed as 7/10)">
+      <div class="form-row-2">
+        <div class="form-group">
+          <label class="form-label">Numeric Price (Diamonds)</label>
+          <input type="number" id="m-pet-price" class="form-input" required value="${pet.price || 10000000}" min="0" step="10000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Demand Rating (1-10)</label>
+          <input type="number" id="m-pet-demand" class="form-input" required value="${pet.demandRating || 7}" min="1" max="10">
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Pet Image</label>
         <div class="image-upload-wrapper">
           <label class="file-drop-area" id="file-drop-area">
             <input type="file" id="m-pet-file" accept="image/*" class="file-input-hidden">
-            <div class="upload-icon">📁</div>
+            <div class="upload-icon">📷</div>
             <div class="upload-text">Click or drag image file here</div>
-            <div class="upload-hint">PNG, WEBP, JPG supported</div>
+            <div class="upload-sub">PNG, WebP, JPG up to 2MB</div>
           </label>
           <div class="upload-preview-container ${pet.image ? '' : 'hidden'}" id="upload-preview-container">
             <img id="m-pet-preview" src="${escapeHtml(pet.image)}" alt="Preview" class="upload-preview-img">
@@ -424,75 +445,83 @@ function openPetModal(petToEdit = null) {
       </div>
       <div class="form-actions">
         <button type="button" class="action-btn secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="action-btn primary" id="pet-submit-btn">${isEdit ? 'Save Changes' : 'Create Pet'}</button>
+        <button type="submit" class="action-btn primary">${isEdit ? 'Save Changes' : 'Create Pet'}</button>
       </div>
     </form>
   `;
 
-  openModal(isEdit ? 'Edit Pet' : 'Add New Pet', html);
+  openModal(isEdit ? 'Edit Pet' : 'Add New Pet', html, false);
 
   const fileInput = document.getElementById('m-pet-file');
   const previewContainer = document.getElementById('upload-preview-container');
   const previewImg = document.getElementById('m-pet-preview');
-  const hiddenInput = document.getElementById('m-pet-image');
   const removeBtn = document.getElementById('remove-preview-btn');
+  const hiddenInput = document.getElementById('m-pet-image');
 
   fileInput.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const base64 = evt.target.result;
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result;
       previewImg.src = base64;
       previewContainer.classList.remove('hidden');
 
-      try {
-        const uploadRes = await fetch('/api/upload-image', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${vaultState.sessionToken}`
-          },
-          body: JSON.stringify({ filename: file.name, base64 })
-        });
-        const uploadJson = await uploadRes.json();
-        if (uploadJson.success && uploadJson.path) {
-          hiddenInput.value = uploadJson.path;
-          selectedImageData = uploadJson.path;
-        } else {
-          hiddenInput.value = base64;
+      if (vaultState.sessionToken) {
+        try {
+          const uploadRes = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${vaultState.sessionToken}`
+            },
+            body: JSON.stringify({ base64 })
+          });
+          const uploadJson = await uploadRes.json();
+          if (uploadJson.success && uploadJson.path) {
+            selectedImageData = uploadJson.path;
+            hiddenInput.value = uploadJson.path;
+          } else {
+            selectedImageData = base64;
+            hiddenInput.value = base64;
+          }
+        } catch (err) {
           selectedImageData = base64;
+          hiddenInput.value = base64;
         }
-      } catch (err) {
-        hiddenInput.value = base64;
+      } else {
         selectedImageData = base64;
+        hiddenInput.value = base64;
       }
     };
     reader.readAsDataURL(file);
   });
 
   removeBtn.addEventListener('click', () => {
-    hiddenInput.value = '';
     selectedImageData = '';
-    fileInput.value = '';
+    hiddenInput.value = '';
     previewImg.src = '';
     previewContainer.classList.add('hidden');
+    fileInput.value = '';
   });
 
   document.getElementById('pet-form').addEventListener('submit', e => {
     e.preventDefault();
-    const rawDemand = Number(document.getElementById('m-pet-demand').value);
-    const demandScore = Math.min(10, Math.max(1, isNaN(rawDemand) ? 5 : rawDemand));
+    const name = document.getElementById('m-pet-name').value.trim();
+    const category = document.getElementById('m-pet-category').value;
+    const price = parseInt(document.getElementById('m-pet-price').value) || 0;
+    const priceDisplay = document.getElementById('m-pet-price-display').value.trim() || formatCurrency(price);
+    const demandRating = parseInt(document.getElementById('m-pet-demand').value) || 5;
 
     const updatedPet = {
       id: pet.id,
-      name: document.getElementById('m-pet-name').value.trim(),
-      category: document.getElementById('m-pet-category').value,
-      price: Number(document.getElementById('m-pet-price').value),
-      priceDisplay: document.getElementById('m-pet-display').value.trim(),
-      demand: `${demandScore}/10`,
-      demandRating: demandScore,
+      name,
+      category,
+      price,
+      priceDisplay,
+      demand: `${demandRating}/10`,
+      demandRating,
       image: hiddenInput.value || selectedImageData
     };
 
@@ -506,7 +535,7 @@ function openPetModal(petToEdit = null) {
     saveVaultData();
     renderPetsTable();
     closeModal();
-    showToast(isEdit ? 'Pet details updated.' : 'New pet added to registry.');
+    showToast(isEdit ? `Updated "${name}".` : `Added "${name}".`);
   });
 }
 
@@ -516,36 +545,45 @@ window.openEditPetModal = function(petId) {
 };
 
 window.deletePet = function(petId) {
-  if (!confirm('Remove this pet?')) return;
+  const found = vaultState.pets.find(p => p.id === petId);
+  const name = found ? found.name : 'this pet';
+  if (!confirm(`Delete "${name}" permanently?`)) return;
+
   vaultState.pets = vaultState.pets.filter(p => p.id !== petId);
   saveVaultData();
   renderPetsTable();
-  showToast('Pet removed.');
+  showToast(`Deleted "${name}".`);
 };
 
-function openCategoryModal() {
+function openCategoryModal(catToEdit = null) {
+  const isEdit = !!catToEdit;
+  const cat = catToEdit || { id: '', name: '', badgeColor: '#38bdf8' };
+
   const html = `
     <form id="category-form">
       <div class="form-group">
-        <label class="form-label">Tier Name (Display)</label>
-        <input type="text" id="m-cat-name" class="form-input" required placeholder="e.g. Secrets, Exclusives">
+        <label class="form-label">Tier Name</label>
+        <input type="text" id="m-cat-name" class="form-input" required value="${escapeHtml(cat.name)}" placeholder="e.g. Secrets, Exclusives">
       </div>
       <div class="form-group">
-        <label class="form-label">Unique Identifier (Slug)</label>
-        <input type="text" id="m-cat-id" class="form-input" required placeholder="e.g. secrets">
+        <label class="form-label">Unique Slug ID (lowercase, no spaces)</label>
+        <input type="text" id="m-cat-id" class="form-input" required ${isEdit ? 'readonly style="opacity:0.6;"' : ''} value="${escapeHtml(cat.id)}" placeholder="e.g. secrets">
       </div>
       <div class="form-group">
-        <label class="form-label">Badge Glow Color</label>
-        <input type="color" id="m-cat-color" class="form-input" value="#f43f5e">
+        <label class="form-label">Theme Color</label>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="color" id="m-cat-color" value="${cat.badgeColor}" style="width:50px;height:40px;border:none;border-radius:8px;cursor:pointer;background:transparent;">
+          <span style="color:var(--text-muted);font-size:0.88rem;">Color for badges and card accents</span>
+        </div>
       </div>
       <div class="form-actions">
         <button type="button" class="action-btn secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="action-btn primary">Add Category</button>
+        <button type="submit" class="action-btn primary">${isEdit ? 'Save Changes' : 'Create Tier'}</button>
       </div>
     </form>
   `;
 
-  openModal('Add Pet Category', html);
+  openModal(isEdit ? 'Edit Category Tier' : 'Add Category Tier', html, false);
 
   document.getElementById('category-form').addEventListener('submit', e => {
     e.preventDefault();
@@ -553,63 +591,79 @@ function openCategoryModal() {
     const name = document.getElementById('m-cat-name').value.trim();
     const badgeColor = document.getElementById('m-cat-color').value;
 
-    if (vaultState.categories.some(c => c.id === id)) {
+    if (!isEdit && vaultState.categories.some(c => c.id === id)) {
       alert('A category with that ID already exists.');
       return;
     }
 
-    vaultState.categories.push({ id, name, badgeColor });
+    if (isEdit) {
+      const idx = vaultState.categories.findIndex(c => c.id === cat.id);
+      if (idx !== -1) vaultState.categories[idx] = { id: cat.id, name, badgeColor };
+    } else {
+      vaultState.categories.push({ id, name, badgeColor });
+    }
+
     saveVaultData();
     renderCategoriesList();
+    renderPetsTable();
     closeModal();
-    showToast(`New category "${name}" added.`);
+    showToast(isEdit ? `Category "${name}" updated.` : `New category "${name}" added.`);
   });
 }
+
+window.openEditCategoryModal = function(catId) {
+  const found = vaultState.categories.find(c => c.id === catId);
+  if (found) openCategoryModal(found);
+};
 
 window.deleteCategory = function(catId) {
   if (vaultState.categories.length <= 1) {
     alert('At least one category tier must remain.');
     return;
   }
-  if (!confirm(`Delete tier "${catId}"?`)) return;
+  if (!confirm(`Delete tier "${catId}"? All pets in this tier will remain but have missing tier meta.`)) return;
   vaultState.categories = vaultState.categories.filter(c => c.id !== catId);
   saveVaultData();
   renderCategoriesList();
+  renderPetsTable();
   showToast('Category deleted.');
 };
 
 function buildSectionEditorHtml(sections) {
-  return sections.map((sec, si) => `
-    <div class="section-editor-block" data-section-index="${si}">
-      <div class="section-editor-header">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <select class="form-select sec-type" data-si="${si}" style="width:140px;">
-            <option value="added" ${sec.type === 'added' ? 'selected' : ''}>Added</option>
-            <option value="changes" ${sec.type === 'changes' ? 'selected' : ''}>Changes</option>
-            <option value="fixes" ${sec.type === 'fixes' ? 'selected' : ''}>Fixes</option>
-          </select>
-          <input type="text" class="form-input sec-label" data-si="${si}" value="${escapeHtml(sec.label || '')}" placeholder="Custom label (optional)" style="flex:1;">
+  return sections.map((sec, si) => {
+    const itemsHtml = sec.items.map((item, ii) => buildItemEditorHtml(si, ii, item)).join('');
+    return `
+      <div class="section-editor-block" data-si="${si}">
+        <div class="section-editor-header">
+          <div style="display:flex;gap:8px;align-items:center;flex:1;">
+            <select class="form-select sec-type" data-si="${si}" style="max-width:130px;padding:6px 10px;font-size:0.85rem;">
+              <option value="added" ${sec.type === 'added' ? 'selected' : ''}>Added</option>
+              <option value="changes" ${sec.type === 'changes' ? 'selected' : ''}>Changes</option>
+              <option value="fixes" ${sec.type === 'fixes' ? 'selected' : ''}>Fixes</option>
+            </select>
+            <input type="text" class="form-input sec-label" data-si="${si}" value="${escapeHtml(sec.label || capitalize(sec.type))}" placeholder="Section label..." style="padding:6px 10px;font-size:0.85rem;">
+          </div>
+          <button type="button" class="icon-btn delete remove-section-btn" data-si="${si}" title="Remove section">🗑️</button>
         </div>
-        <button type="button" class="icon-btn delete remove-section-btn" data-si="${si}" title="Remove section">🗑️</button>
+        <div class="section-items-container" data-si="${si}">
+          ${itemsHtml}
+        </div>
+        <button type="button" class="action-btn secondary add-item-btn" data-si="${si}" style="font-size:0.78rem;padding:4px 10px;margin-top:8px;">+ Add Item</button>
       </div>
-      <div class="section-items-editor" id="section-items-${si}">
-        ${sec.items.map((item, ii) => buildItemEditorHtml(si, ii, item)).join('')}
-      </div>
-      <button type="button" class="action-btn secondary add-item-btn" data-si="${si}" style="margin-top:10px;font-size:0.8rem;padding:6px 12px;">+ Add Item</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function buildItemEditorHtml(si, ii, item) {
   return `
     <div class="item-editor-row" data-si="${si}" data-ii="${ii}">
-      <div style="flex:1;">
-        <input type="text" class="form-input item-heading" data-si="${si}" data-ii="${ii}" value="${escapeHtml(item.heading || '')}" placeholder="Heading (e.g. Haunted Island)">
-        <textarea class="form-textarea item-body" data-si="${si}" data-ii="${ii}" placeholder="Description text..." style="margin-top:6px;min-height:62px;">${escapeHtml(item.body || '')}</textarea>
-        <div class="item-image-upload" style="margin-top:8px;">
-          <label class="file-drop-area item-drop-area" style="padding:10px;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+        <input type="text" class="form-input item-heading" data-si="${si}" data-ii="${ii}" value="${escapeHtml(item.heading || '')}" placeholder="Item heading..." style="padding:6px 10px;font-size:0.85rem;">
+        <textarea class="form-textarea item-body" data-si="${si}" data-ii="${ii}" placeholder="Item description / details..." style="padding:6px 10px;font-size:0.85rem;min-height:50px;">${escapeHtml(item.body || '')}</textarea>
+        <div class="item-image-upload" style="margin-top:4px;">
+          <label class="file-drop-area item-drop-area" style="padding:8px;">
             <input type="file" class="file-input-hidden item-file" data-si="${si}" data-ii="${ii}" accept="image/*">
-            <div class="upload-text" style="font-size:0.78rem;">📎 Drop or click to add image</div>
+            <div class="upload-text" style="font-size:0.78rem;">📷 Drop or click to add image</div>
           </label>
           <div class="upload-preview-container item-preview-container ${item.image ? '' : 'hidden'}" data-si="${si}" data-ii="${ii}" style="width:70px;height:70px;margin-top:6px;display:${item.image ? 'inline-flex' : 'none'};">
             <img class="item-preview-img" data-si="${si}" data-ii="${ii}" src="${escapeHtml(item.image || '')}" alt="" class="upload-preview-img">
@@ -639,7 +693,8 @@ function openLogModal(logToEdit = null) {
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     summary: '',
     readTime: '3 min read',
-    slug: ''
+    slug: '',
+    bannerUrl: ''
   };
 
   const renderEditor = () => {
@@ -671,6 +726,10 @@ function openLogModal(logToEdit = null) {
         </div>
       </div>
       <div class="form-group">
+        <label class="form-label">Cover Banner URL (shown on dev blog card)</label>
+        <input type="text" id="m-log-banner" class="form-input" value="${escapeHtml(logData.bannerUrl || '')}" placeholder="https://... or /mystery-og-banner.webp">
+      </div>
+      <div class="form-group">
         <label class="form-label">URL Slug</label>
         <input type="text" id="m-log-slug" class="form-input" value="${escapeHtml(logData.slug || '')}" placeholder="e.g. hell (→ /logs/hell)">
       </div>
@@ -690,7 +749,7 @@ function openLogModal(logToEdit = null) {
     </form>
   `;
 
-  openModal(isEdit ? 'Edit Update Log' : 'Post Update Log', html, true);
+  openModal(isEdit ? 'Edit Update Log' : 'Post Dev Blog', html, true);
   renderEditor();
 
   document.getElementById('add-section-btn').addEventListener('click', () => {
@@ -702,6 +761,7 @@ function openLogModal(logToEdit = null) {
     e.preventDefault();
     collectSectionsFromDOM(sections);
     const rawSlug = document.getElementById('m-log-slug').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const bannerUrl = (document.getElementById('m-log-banner')?.value || '').trim();
     const updatedLog = {
       id: logData.id,
       title: document.getElementById('m-log-title').value.trim(),
@@ -709,6 +769,7 @@ function openLogModal(logToEdit = null) {
       readTime: document.getElementById('m-log-readtime').value.trim(),
       summary: document.getElementById('m-log-summary').value.trim(),
       slug: rawSlug || logData.id,
+      bannerUrl: bannerUrl,
       sections: sections.filter(s => s.items.some(i => i.heading || i.body))
     };
 
@@ -791,30 +852,38 @@ function attachSectionEditorListeners(sections, renderEditor) {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = async (evt) => {
-        const base64 = evt.target.result;
-        const previewContainer = document.querySelector(`.item-preview-container[data-si="${si}"][data-ii="${ii}"]`);
-        const previewImg = document.querySelector(`.item-preview-img[data-si="${si}"][data-ii="${ii}"]`);
+      reader.onload = async (ev) => {
+        const base64 = ev.target.result;
         const hiddenVal = document.querySelector(`.item-image-value[data-si="${si}"][data-ii="${ii}"]`);
+        const previewImg = document.querySelector(`.item-preview-img[data-si="${si}"][data-ii="${ii}"]`);
+        const previewContainer = document.querySelector(`.item-preview-container[data-si="${si}"][data-ii="${ii}"]`);
+
         previewImg.src = base64;
         previewContainer.classList.remove('hidden');
         previewContainer.style.display = 'inline-flex';
-        hiddenVal.value = base64;
 
-        try {
-          const uploadRes = await fetch('/api/upload-image', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${vaultState.sessionToken}`
-            },
-            body: JSON.stringify({ filename: file.name, base64 })
-          });
-          const uploadJson = await uploadRes.json();
-          if (uploadJson.success && uploadJson.path) {
-            hiddenVal.value = uploadJson.path;
+        if (vaultState.sessionToken) {
+          try {
+            const uploadRes = await fetch('/api/upload-image', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${vaultState.sessionToken}`
+              },
+              body: JSON.stringify({ base64 })
+            });
+            const uploadJson = await uploadRes.json();
+            if (uploadJson.success && uploadJson.path) {
+              hiddenVal.value = uploadJson.path;
+            } else {
+              hiddenVal.value = base64;
+            }
+          } catch (err) {
+            hiddenVal.value = base64;
           }
-        } catch (err) {}
+        } else {
+          hiddenVal.value = base64;
+        }
       };
       reader.readAsDataURL(file);
     });
