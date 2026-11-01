@@ -29,19 +29,7 @@ async function loadData() {
     appState.updateLogs = [];
   }
 
-  applySlugFromUrl();
   initUI();
-}
-
-function applySlugFromUrl() {
-  const match = location.pathname.match(/^\/logs\/([^/]+)\/?$/);
-  if (!match) return;
-  const slug = decodeURIComponent(match[1]).toLowerCase();
-  const found = appState.updateLogs.find(l => (l.slug || l.id).toLowerCase() === slug);
-  if (found) {
-    appState.activeLogId = found.id;
-    appState.pendingView = 'updates-view';
-  }
 }
 
 function initUI() {
@@ -54,11 +42,6 @@ function initUI() {
   setupEventListeners();
   fetchRobloxStats();
   setInterval(fetchRobloxStats, ROBLOX_STATS_INTERVAL);
-
-  if (appState.pendingView) {
-    switchView(appState.pendingView);
-    appState.pendingView = null;
-  }
 }
 
 function applySettings() {
@@ -232,14 +215,6 @@ function renderDevblogList() {
     </div>
   `;
 
-  const updatesViewEl = document.getElementById('updates-view');
-  if (updatesViewEl && updatesViewEl.classList.contains('active')) {
-    const newUrl = `/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
-    if (location.pathname !== newUrl) {
-      history.replaceState(null, '', newUrl);
-    }
-  }
-
   if (tocContainer) {
     tocContainer.innerHTML = (activeLog.sections || []).map(sec => `
       <a class="toc-link" href="#" style="color:${SECTION_COLORS[sec.type] || '#94a3b8'}">
@@ -320,9 +295,6 @@ function switchView(targetViewId) {
   if (navMatch) navMatch.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  if (targetViewId !== 'updates-view' && location.pathname.startsWith('/logs/')) {
-    history.replaceState(null, '', '/');
-  }
 }
 
 function setupNavigation() {
@@ -379,18 +351,7 @@ async function refreshDataSilently() {
   } catch (err) {}
 }
 
-function preRouteByUrl() {
-  if (!location.pathname.startsWith('/logs/')) return;
-  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-  const viewEl = document.getElementById('updates-view');
-  if (viewEl) viewEl.classList.add('active');
-  const navMatch = document.querySelector('.nav-btn[data-target="updates-view"]');
-  if (navMatch) navMatch.classList.add('active');
-}
-
 window.addEventListener('DOMContentLoaded', () => {
-  preRouteByUrl();
   loadData();
   setInterval(refreshDataSilently, 20000);
 });
