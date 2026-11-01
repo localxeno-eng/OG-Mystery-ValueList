@@ -219,13 +219,19 @@ export default {
     // Bare /logs or /logs/ with no slug: there's nothing to show, send
     // them home instead of letting it fall through to raw asset serving.
     if (path === '/logs' || path === '/logs/') {
-      return Response.redirect(new URL('/', url), 302);
+      return new Response(null, {
+        status: 302,
+        headers: { Location: '/', 'Cache-Control': 'no-store' }
+      });
     }
 
     // Everything else: serve the static site. /logs/<slug> gets its own
     // standalone page (logs.html) instead of routing through index.html.
     if (path.startsWith('/logs/')) {
-      return env.ASSETS.fetch(new Request(new URL('/logs.html', url), request));
+      const res = await env.ASSETS.fetch(new Request(new URL('/logs.html', url), request));
+      const res2 = new Response(res.body, res);
+      res2.headers.set('Cache-Control', 'no-store');
+      return res2;
     }
 
     return env.ASSETS.fetch(request);
