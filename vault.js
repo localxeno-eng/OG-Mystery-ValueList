@@ -39,7 +39,6 @@ async function deriveHash(password, saltHex) {
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }
-
 async function checkLocalOrRemoteVerify(code) {
   try {
     const res = await fetch('/api/verify-code', {
