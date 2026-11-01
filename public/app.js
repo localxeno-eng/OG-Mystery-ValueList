@@ -231,9 +231,12 @@ function renderDevblogList() {
     </div>
   `;
 
-  const newUrl = `/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
-  if (location.pathname !== newUrl) {
-    history.replaceState(null, '', newUrl);
+  const updatesViewEl = document.getElementById('updates-view');
+  if (updatesViewEl && updatesViewEl.classList.contains('active')) {
+    const newUrl = `/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
+    if (location.pathname !== newUrl) {
+      history.replaceState(null, '', newUrl);
+    }
   }
 
   if (tocContainer) {
