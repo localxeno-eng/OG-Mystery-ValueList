@@ -8,8 +8,4 @@ binding = "ASSETS"
 
 [[kv_namespaces]]
 binding = "PSOG_KV"
-id = "REPLACE_WITH_YOUR_KV_ID"
-
-# Secrets (do NOT put real values here — set them with `wrangler secret put <NAME>`):
-#   ADMIN_ACCESS_CODE
-#   SESSION_SECRET  (optional, falls back to ADMIN_ACCESS_CODE)
+id = "e381396a461248b49a3a1c1531d289d0"
