@@ -36,11 +36,11 @@ async function loadData() {
 function applySlugFromUrl() {
   const match = location.pathname.match(/^\/logs\/([^/]+)\/?$/);
   if (!match) return;
-  const slug = decodeURIComponent(match[1]);
-  const found = appState.updateLogs.find(l => (l.slug || l.id) === slug);
+  const slug = decodeURIComponent(match[1]).toLowerCase();
+  const found = appState.updateLogs.find(l => (l.slug || l.id).toLowerCase() === slug);
   if (found) {
     appState.activeLogId = found.id;
-    appState.pendingView = 'devblog-view';
+    appState.pendingView = 'updates-view';
   }
 }
 
@@ -316,7 +316,7 @@ function switchView(targetViewId) {
   if (navMatch) navMatch.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  if (targetViewId !== 'devblog-view' && location.pathname.startsWith('/logs/')) {
+  if (targetViewId !== 'updates-view' && location.pathname.startsWith('/logs/')) {
     history.replaceState(null, '', '/');
   }
 }
