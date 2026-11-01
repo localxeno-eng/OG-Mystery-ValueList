@@ -92,7 +92,7 @@ function renderLog() {
     </div>
     <div class="devblog-nav">
       ${updateLogs.map(log => `
-        <a class="devblog-nav-item ${log.id === activeLog.id ? 'active' : ''}" href="/logs/${encodeURIComponent(log.slug || log.id)}">
+        <a class="devblog-nav-item ${log.id === activeLog.id ? 'active' : ''}" href="/logs/${encodeURIComponent(log.slug || log.id || 'log')}">
           <span class="devblog-nav-title">${escapeHtml(log.title)}</span>
           <span class="devblog-nav-date">${escapeHtml(log.date)}</span>
         </a>
@@ -100,7 +100,7 @@ function renderLog() {
     </div>
   `;
 
-  const newUrl = `/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
+  const newUrl = `/logs/${encodeURIComponent(activeLog.slug || activeLog.id || 'log')}`;
   if (location.pathname !== newUrl) {
     history.replaceState(null, '', newUrl);
   }
@@ -116,7 +116,7 @@ function renderLog() {
   const shareBtn = document.getElementById('devblog-share-btn');
   if (shareBtn) {
     shareBtn.addEventListener('click', () => {
-      const url = `${location.origin}/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
+      const url = `${location.origin}/logs/${encodeURIComponent(activeLog.slug || activeLog.id || 'log')}`;
       if (navigator.clipboard) {
         navigator.clipboard.writeText(url).then(() => {
           shareBtn.textContent = '✅ Copied!';
