@@ -9,10 +9,25 @@ let appState = {
   activeCategory: 'all',
   searchQuery: '',
   sortMode: 'price-desc',
-  activeLogId: null
+  activeLogId: null,
+  activeFilterPostId: 'all',
+  theme: localStorage.getItem('og_theme') || 'light'
 };
 
+function initTheme() {
+  document.documentElement.setAttribute('data-theme', appState.theme);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = appState.theme === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  appState.theme = appState.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('og_theme', appState.theme);
+  initTheme();
+}
+
 async function loadData() {
+  initTheme();
   try {
     const res = await fetch('/api/get-data');
     const data = await res.json();
@@ -36,7 +51,6 @@ function initUI() {
   renderCategoryFilters();
   renderPetGrid();
   renderDevblogList();
-  updateStats();
   applySettings();
   setupNavigation();
   setupEventListeners();
@@ -78,6 +92,9 @@ async function fetchRobloxStats() {
       setStatDisplay('stat-active', data.active);
       setStatDisplay('stat-favorites', data.favorites);
       setStatDisplay('stat-visits', data.visits);
+      setStatDisplay('sidebar-stat-active', data.active);
+      setStatDisplay('sidebar-stat-favorites', data.favorites);
+      setStatDisplay('sidebar-stat-visits', data.visits);
     }
   } catch (e) {}
 }
@@ -86,8 +103,6 @@ function setStatDisplay(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value || '—';
 }
-
-function updateStats() {}
 
 function renderCategoryFilters() {
   const container = document.getElementById('category-filters');
@@ -148,8 +163,8 @@ function renderPetGrid() {
   grid.innerHTML = filtered.map(pet => {
     const cat = getCategoryMeta(pet.category);
     const imageHtml = pet.image
-      ? `<img src="${pet.image}" alt="${escapeHtml(pet.name)}" class="pet-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'pet-placeholder\\'><svg width=\\'36\\' height=\\'36\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/><circle cx=\\'8.5\\' cy=\\'8.5\\' r=\\'1.5\\'/><polyline points=\\'21 15 16 10 5 21\\'/></svg><span>No Image</span></div>'">`
-      : `<div class="pet-placeholder"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>No Image</span></div>`;
+      ? `<img src="${pet.image}" alt="${escapeHtml(pet.name)}" class="pet-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'pet-placeholder\\'><span>🐾</span><span>No Image</span></div>'">`
+      : `<div class="pet-placeholder"><span>🐾</span><span>No Image</span></div>`;
 
     return `
       <article class="pet-card tier-${pet.category}" data-id="${pet.id}">
@@ -174,7 +189,7 @@ function renderPetGrid() {
   }).join('');
 }
 
-const SECTION_COLORS = { added: '#f59e0b', changes: '#38bdf8', fixes: '#f43f5e' };
+const SECTION_COLORS = { added: '#f97316', changes: '#0ea5e9', fixes: '#f43f5e' };
 
 function renderDevblogList() {
   const container = document.getElementById('update-logs-list');
@@ -182,18 +197,127 @@ function renderDevblogList() {
   if (!container) return;
 
   if (!appState.updateLogs.length) {
-    container.innerHTML = `<div class="empty-state" style="margin:0"><div class="empty-emoji">📋</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-emoji">📋</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
     return;
   }
 
-  const activeLog = appState.updateLogs.find(l => l.id === appState.activeLogId) || appState.updateLogs[0];
-  appState.activeLogId = activeLog.id;
+  const logs = appState.updateLogs;
+  const featured = logs[0];
+  const otherLogs = logs.slice(1);
+
+  const featuredImg = featured.bannerUrl || appState.settings.gameBannerUrl || '';
+  const featuredImgHtml = featuredImg
+    ? `<img src="${featuredImg}" alt="${escapeHtml(featured.title)}" onerror="this.style.display='none';this.parentElement.querySelector('.featured-blog-fallback').style.display='block';"><div class="featured-blog-fallback" style="display:none;">🐾</div>`
+    : `<div class="featured-blog-fallback">🐾</div>`;
+
+  let cardsHtml = '';
+  if (otherLogs.length > 0) {
+    cardsHtml = otherLogs.map(log => {
+      const cardImg = log.bannerUrl || appState.settings.gameBannerUrl || '';
+      const imgHtml = cardImg
+        ? `<img src="${cardImg}" alt="${escapeHtml(log.title)}" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=\\'font-size:3rem;\\'>🐾</span>';">`
+        : `<span style="font-size:3rem;">🐾</span>`;
+
+      return `
+        <div class="big-blog-card" onclick="openDevblogDetail('${log.id}')">
+          <div class="big-card-thumb-wrap">
+            ${imgHtml}
+          </div>
+          <div class="big-card-body">
+            <div class="big-card-meta">
+              <span>Pet Simulator OG</span>
+              <span>${escapeHtml(log.date)}</span>
+            </div>
+            <h3 class="big-card-title">${escapeHtml(log.title)}</h3>
+            <p class="big-card-summary">${escapeHtml(log.summary || 'Click to view full update patch notes and changes.')}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
 
   container.innerHTML = `
-    <div class="devblog-article">
+    <div class="big-page-header">
+      <div class="big-header-row">
+        <h1 class="big-main-title">og:mystery Dev Blog</h1>
+        <div class="big-search-box">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="devblog-search" placeholder="Search the blog..." autocomplete="off">
+        </div>
+      </div>
+      <p class="big-sub-desc">Update notes for Pet Simulator OG, straight from us. Newest first, with patch details, stats, and changelogs.</p>
+    </div>
+
+    <div class="big-pills-row">
+      <button class="big-pill active" data-filter="all">🐾 All Posts</button>
+      <button class="big-pill" data-filter="updates">🔥 Updates</button>
+      <button class="big-pill" data-filter="events">🎃 Events</button>
+      <button class="big-pill" data-filter="fixes">🛠️ Patches</button>
+    </div>
+
+    <div class="featured-blog-card">
+      <div class="featured-blog-img-wrapper">
+        ${featuredImgHtml}
+      </div>
+      <div class="featured-blog-content">
+        <div class="featured-eyebrow">Latest Dev Blog</div>
+        <div class="featured-game-chip">Pet Simulator OG</div>
+        <h2 class="featured-title">${escapeHtml(featured.title)}</h2>
+        <p class="featured-summary">${escapeHtml(featured.summary || 'The newest patch is live! Check out what was added, balance changes, and bug fixes.')}</p>
+        <button class="big-read-post-btn" onclick="openDevblogDetail('${featured.id}')">
+          Read the post →
+        </button>
+      </div>
+    </div>
+
+    ${otherLogs.length > 0 ? `
+      <div class="big-grid-cards">
+        ${cardsHtml}
+      </div>
+    ` : ''}
+
+    <div id="full-article-view" style="display:none;margin-top:40px;">
+      <div style="margin-bottom:16px;">
+        <button class="nav-btn" onclick="closeDevblogDetail()" style="display:inline-flex;align-items:center;gap:6px;">
+          ← Back to All Posts
+        </button>
+      </div>
+      <div id="active-article-target"></div>
+    </div>
+  `;
+
+  const searchInput = document.getElementById('devblog-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.big-blog-card').forEach(card => {
+        const title = card.querySelector('.big-card-title')?.textContent.toLowerCase() || '';
+        const summary = card.querySelector('.big-card-summary')?.textContent.toLowerCase() || '';
+        if (title.includes(q) || summary.includes(q)) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  }
+}
+
+window.openDevblogDetail = function(logId) {
+  const activeLog = appState.updateLogs.find(l => l.id === logId) || appState.updateLogs[0];
+  if (!activeLog) return;
+  appState.activeLogId = activeLog.id;
+
+  const fullView = document.getElementById('full-article-view');
+  const target = document.getElementById('active-article-target');
+  const tocContainer = document.getElementById('toc-links-container');
+  if (!fullView || !target) return;
+
+  target.innerHTML = `
+    <article class="devblog-article">
       <div class="devblog-meta">
         <span class="devblog-game-tag">🐾 Pet Simulator OG</span>
-        <button class="devblog-share-btn" id="devblog-share-btn" title="Copy share link">🔗 Share</button>
+        <button class="devblog-share-btn" id="devblog-share-btn">🔗 Share</button>
       </div>
       <h1 class="devblog-title">${escapeHtml(activeLog.title)}</h1>
       <div class="devblog-byline">
@@ -204,39 +328,16 @@ function renderDevblogList() {
       <div class="devblog-sections">
         ${(activeLog.sections || []).map(sec => renderSection(sec)).join('')}
       </div>
-    </div>
-    <div class="devblog-nav">
-      ${appState.updateLogs.map(log => `
-        <button class="devblog-nav-item ${log.id === activeLog.id ? 'active' : ''}" data-log-id="${log.id}">
-          <span class="devblog-nav-title">${escapeHtml(log.title)}</span>
-          <span class="devblog-nav-date">${escapeHtml(log.date)}</span>
-        </button>
-      `).join('')}
-    </div>
+    </article>
   `;
 
   if (tocContainer) {
     tocContainer.innerHTML = (activeLog.sections || []).map(sec => `
-      <a class="toc-link" href="#" style="color:${SECTION_COLORS[sec.type] || '#94a3b8'}">
+      <a class="toc-link" href="#" style="color:${SECTION_COLORS[sec.type] || 'inherit'}">
         ${escapeHtml(sec.label || sec.type)}
       </a>
     `).join('');
   }
-
-  container.querySelectorAll('.devblog-nav-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      appState.activeLogId = btn.dataset.logId;
-      renderDevblogList();
-      if (tocContainer) {
-        const activeLog2 = appState.updateLogs.find(l => l.id === appState.activeLogId);
-        tocContainer.innerHTML = (activeLog2?.sections || []).map(sec => `
-          <a class="toc-link" href="#" style="color:${SECTION_COLORS[sec.type] || '#94a3b8'}">
-            ${escapeHtml(sec.label || sec.type)}
-          </a>
-        `).join('');
-      }
-    });
-  });
 
   const shareBtn = document.getElementById('devblog-share-btn');
   if (shareBtn) {
@@ -250,10 +351,19 @@ function renderDevblogList() {
       }
     });
   }
-}
+
+  fullView.style.display = 'block';
+  fullView.scrollIntoView({ behavior: 'smooth' });
+};
+
+window.closeDevblogDetail = function() {
+  const fullView = document.getElementById('full-article-view');
+  if (fullView) fullView.style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 function renderSection(sec) {
-  const color = SECTION_COLORS[sec.type] || '#94a3b8';
+  const color = SECTION_COLORS[sec.type] || '#f97316';
   const items = (sec.items || []).map(item => `
     <div class="blog-section-item">
       ${item.heading ? `<h4 class="blog-item-heading">${escapeHtml(item.heading)}</h4>` : ''}
@@ -294,11 +404,10 @@ function switchView(targetViewId) {
   const navMatch = document.querySelector(`.nav-btn[data-target="${targetViewId}"]`);
   if (navMatch) navMatch.classList.add('active');
   window.scrollTo({ top: 0, behavior: 'smooth' });
-
 }
 
 function setupNavigation() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  document.querySelectorAll('.nav-btn[data-target]').forEach(btn => {
     btn.addEventListener('click', () => switchView(btn.dataset.target));
   });
   document.querySelectorAll('.footer-link[data-target]').forEach(link => {
@@ -307,6 +416,11 @@ function setupNavigation() {
       switchView(link.dataset.target);
     });
   });
+
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', toggleTheme);
+  }
 }
 
 function setupEventListeners() {
@@ -347,7 +461,7 @@ async function refreshDataSilently() {
     appState.pets = data.pets || [];
     appState.updateLogs = data.updateLogs || [];
     appState.settings = Object.assign({ gameBannerUrl: '', gameBannerEmoji: '🐾', activeUpdateBadge: 'Update 3: Haunted Island' }, data.settings || {});
-    initUI();
+    applySettings();
   } catch (err) {}
 }
 
