@@ -216,10 +216,10 @@ export default {
       return json({ success: false, error: 'Not found' }, 404);
     }
 
-    // Everything else: serve the static site, rewriting /logs/<slug> to index.html
-    // so client-side routing in app.js can take over.
+    // Everything else: serve the static site. /logs/<slug> gets its own
+    // standalone page (logs.html) instead of routing through index.html.
     if (path.startsWith('/logs/')) {
-      return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
+      return env.ASSETS.fetch(new Request(new URL('/logs.html', url), request));
     }
 
     return env.ASSETS.fetch(request);
