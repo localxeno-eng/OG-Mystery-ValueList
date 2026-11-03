@@ -11,7 +11,7 @@ async function loadLogs() {
   try {
     const res = await fetch('/api/get-data');
     const data = await res.json();
-    updateLogs = data.updateLogs || [];
+    updateLogs = (data.updateLogs || []).filter(l => !l.isPrivate);
     applySettings(data.settings || {});
   } catch (err) {
     updateLogs = [];
@@ -67,7 +67,7 @@ function renderLog() {
   if (!container) return;
 
   if (!updateLogs.length) {
-    container.innerHTML = `<div class="empty-state" style="margin:0"><div class="empty-emoji">📋</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
+    container.innerHTML = `<div class="empty-state" style="margin:0"><div class="empty-emoji">📜</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
     return;
   }
 
@@ -119,7 +119,7 @@ function renderLog() {
       const url = `${location.origin}/logs/${encodeURIComponent(activeLog.slug || activeLog.id || 'log')}`;
       if (navigator.clipboard) {
         navigator.clipboard.writeText(url).then(() => {
-          shareBtn.textContent = '✅ Copied!';
+          shareBtn.textContent = '✓ Copied!';
           setTimeout(() => { shareBtn.textContent = '🔗 Share'; }, 1800);
         });
       }
@@ -128,12 +128,12 @@ function renderLog() {
 }
 
 function renderSection(sec) {
-  const color = SECTION_COLORS[sec.type] || '#94a3b8';
+  const color = SECTION_COLORS[sec.type] || '#fbbf24';
   const items = (sec.items || []).map(item => `
     <div class="blog-section-item">
       ${item.heading ? `<h4 class="blog-item-heading">${escapeHtml(item.heading)}</h4>` : ''}
       ${item.body ? `<p class="blog-item-body">${escapeHtml(item.body)}</p>` : ''}
-      ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.heading || '')}" class="blog-item-image" loading="lazy">` : ''}
+      ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.heading || '')}" class="blog-item-image">` : ''}
     </div>
   `).join('');
   return `
