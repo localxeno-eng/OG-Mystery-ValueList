@@ -14,7 +14,7 @@ function getSessionSecret(env) {
   return env.SESSION_SECRET || env.ADMIN_ACCESS_CODE || 'fallback-dev-secret-change-me';
 }
 
-async function handleGetData(env) {
+async function handleGetData(request, env) {
   try {
     const raw = await env.PSOG_KV.get('main');
     let record = raw ? JSON.parse(raw) : null;
@@ -22,6 +22,17 @@ async function handleGetData(env) {
     if (!record) {
       record = seedData;
       await env.PSOG_KV.put('main', JSON.stringify(seedData));
+    }
+
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    const isStaff = token ? await verifySessionToken(token, getSessionSecret(env)) : false;
+
+    if (!isStaff && Array.isArray(record.updateLogs)) {
+      record = {
+        ...record,
+        updateLogs: record.updateLogs.filter(l => !l.isPrivate)
+      };
     }
 
     return json(record, 200, { 'Cache-Control': 'no-store' });
@@ -203,7 +214,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    if (path === '/api/get-data') return handleGetData(env);
+    if (path === '/api/get-data') return handleGetData(request, env);
     if (path === '/api/save-data') return handleSaveData(request, env);
     if (path === '/api/verify-code') return handleVerifyCode(request, env);
     if (path === '/api/roblox-stats') return handleRobloxStats();
