@@ -17,7 +17,7 @@ let appState = {
 function initTheme() {
   document.documentElement.setAttribute('data-theme', appState.theme);
   const btn = document.getElementById('theme-toggle-btn');
-  if (btn) btn.textContent = appState.theme === 'dark' ? '☀️' : '🌙';
+  if (btn) btn.textContent = appState.theme === 'dark' ? '🌙' : '☀️';
 }
 
 function toggleTheme() {
@@ -33,7 +33,7 @@ async function loadData() {
     const data = await res.json();
     appState.categories = data.categories || [];
     appState.pets = data.pets || [];
-    appState.updateLogs = data.updateLogs || [];
+    appState.updateLogs = (data.updateLogs || []).filter(l => !l.isPrivate);
     appState.settings = Object.assign({ gameBannerUrl: '', gameBannerEmoji: '🐾', activeUpdateBadge: 'Update 3: Haunted Island' }, data.settings || {});
   } catch (err) {
     appState.categories = [
@@ -92,9 +92,6 @@ async function fetchRobloxStats() {
       setStatDisplay('stat-active', data.active);
       setStatDisplay('stat-favorites', data.favorites);
       setStatDisplay('stat-visits', data.visits);
-      setStatDisplay('sidebar-stat-active', data.active);
-      setStatDisplay('sidebar-stat-favorites', data.favorites);
-      setStatDisplay('sidebar-stat-visits', data.visits);
     }
   } catch (e) {}
 }
@@ -105,52 +102,79 @@ function setStatDisplay(id, value) {
 }
 
 function renderCategoryFilters() {
-  const container = document.getElementById('category-filters');
+  const container = document.getElementById('category-filter-list');
   if (!container) return;
 
-  container.innerHTML = `<button class="filter-pill ${appState.activeCategory === 'all' ? 'active' : ''}" data-category="all">All Tiers</button>`;
+  const totalPets = appState.pets.length;
+  let html = `
+    <button class="pill ${appState.activeCategory === 'all' ? 'active' : ''}" data-cat="all">
+      <span class="pill-name">All Values</span>
+      <span class="pill-count">${totalPets}</span>
+    </button>
+  `;
 
   appState.categories.forEach(cat => {
-    const btn = document.createElement('button');
-    btn.className = `filter-pill ${appState.activeCategory === cat.id ? 'active' : ''}`;
-    btn.dataset.category = cat.id;
-    btn.textContent = cat.name;
-    container.appendChild(btn);
+    const count = appState.pets.filter(p => p.category === cat.id).length;
+    html += `
+      <button class="pill ${appState.activeCategory === cat.id ? 'active' : ''}" data-cat="${escapeHtml(cat.id)}">
+        <span class="pill-swatch" style="background:${cat.badgeColor || '#a855f7'};box-shadow:0 0 8px ${cat.badgeColor || '#a855f7'}"></span>
+        <span class="pill-name">${escapeHtml(cat.name)}</span>
+        <span class="pill-count">${count}</span>
+      </button>
+    `;
+  });
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      appState.activeCategory = btn.dataset.cat;
+      renderCategoryFilters();
+      renderPetGrid();
+    });
   });
 }
 
-function formatDemand(demand, rating) {
-  if (typeof demand === 'string' && demand.includes('/')) return demand;
-  const num = rating !== undefined ? rating : (Number(demand) || 5);
-  return `${num}/10`;
-}
+function getFilteredPets() {
+  let list = appState.pets.slice();
 
-function getCategoryMeta(catId) {
-  return appState.categories.find(c => c.id === catId) || { id: catId, name: catId, badgeColor: '#94a3b8' };
-}
+  if (appState.activeCategory !== 'all') {
+    list = list.filter(p => p.category === appState.activeCategory);
+  }
 
-function renderPetGrid() {
-  const grid = document.getElementById('pet-grid');
-  const countEl = document.getElementById('results-count');
-  const emptyEl = document.getElementById('no-results');
-  if (!grid) return;
+  if (appState.searchQuery) {
+    const q = appState.searchQuery.toLowerCase();
+    list = list.filter(p => p.name.toLowerCase().includes(q));
+  }
 
-  let filtered = appState.pets.filter(pet => {
-    const matchesCategory = appState.activeCategory === 'all' || pet.category === appState.activeCategory;
-    const matchesSearch = pet.name.toLowerCase().includes(appState.searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  filtered.sort((a, b) => {
+  list.sort((a, b) => {
     switch (appState.sortMode) {
-      case 'price-asc': return a.price - b.price;
-      case 'demand-desc': return b.demandRating - a.demandRating || b.price - a.price;
-      case 'name-asc': return a.name.localeCompare(b.name);
-      default: return b.price - a.price;
+      case 'price-desc':
+        return b.price - a.price;
+      case 'price-asc':
+        return a.price - b.price;
+      case 'demand-desc':
+        return (b.demandRating || 0) - (a.demandRating || 0);
+      case 'demand-asc':
+        return (a.demandRating || 0) - (b.demandRating || 0);
+      case 'name-asc':
+        return a.name.localeCompare(b.name);
+      default:
+        return 0;
     }
   });
 
-  if (countEl) countEl.textContent = `Showing ${filtered.length} ${filtered.length === 1 ? 'pet' : 'pets'}`;
+  return list;
+}
+
+function renderPetGrid() {
+  const grid = document.getElementById('pets-grid');
+  const countEl = document.getElementById('search-result-count');
+  const emptyEl = document.getElementById('empty-state');
+  if (!grid) return;
+
+  const filtered = getFilteredPets();
+  if (countEl) countEl.textContent = `${filtered.length} pets registered`;
 
   if (filtered.length === 0) {
     grid.innerHTML = '';
@@ -161,7 +185,6 @@ function renderPetGrid() {
   emptyEl.classList.add('hidden');
 
   grid.innerHTML = filtered.map(pet => {
-    const cat = getCategoryMeta(pet.category);
     const imageHtml = pet.image
       ? `<img src="${pet.image}" alt="${escapeHtml(pet.name)}" class="pet-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'pet-placeholder\\'><span>🐾</span><span>No Image</span></div>'">`
       : `<div class="pet-placeholder"><span>🐾</span><span>No Image</span></div>`;
@@ -193,11 +216,10 @@ const SECTION_COLORS = { added: '#f97316', changes: '#0ea5e9', fixes: '#f43f5e' 
 
 function renderDevblogList() {
   const container = document.getElementById('update-logs-list');
-  const tocContainer = document.getElementById('toc-links-container');
   if (!container) return;
 
   if (!appState.updateLogs.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-emoji">📋</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-emoji">📜</div><h3>No update logs yet</h3><p>Check back after the next patch!</p></div>`;
     return;
   }
 
@@ -345,7 +367,7 @@ window.openDevblogDetail = function(logId) {
       const url = `${location.origin}/logs/${encodeURIComponent(activeLog.slug || activeLog.id)}`;
       if (navigator.clipboard) {
         navigator.clipboard.writeText(url).then(() => {
-          shareBtn.textContent = '✅ Copied!';
+          shareBtn.textContent = '✓ Copied!';
           setTimeout(() => { shareBtn.textContent = '🔗 Share'; }, 1800);
         });
       }
@@ -379,11 +401,62 @@ function renderSection(sec) {
   `;
 }
 
+function setupNavigation() {
+  const navTabs = document.querySelectorAll('.nav-tab');
+  const petSection = document.getElementById('pets-section');
+  const logsSection = document.getElementById('update-logs-section');
+
+  navTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      navTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const target = tab.dataset.section;
+      if (target === 'pets') {
+        petSection.classList.remove('hidden');
+        logsSection.classList.add('hidden');
+      } else if (target === 'logs') {
+        petSection.classList.add('hidden');
+        logsSection.classList.remove('hidden');
+      }
+    });
+  });
+}
+
+function setupEventListeners() {
+  const searchInput = document.getElementById('pet-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', e => {
+      appState.searchQuery = e.target.value.trim();
+      renderPetGrid();
+    });
+  }
+
+  const sortSelect = document.getElementById('sort-select');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', e => {
+      appState.sortMode = e.target.value;
+      renderPetGrid();
+    });
+  }
+
+  const themeToggle = document.getElementById('theme-toggle-btn');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', toggleTheme);
+  }
+}
+
 function formatCurrency(num) {
   if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'B';
   if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   return num.toLocaleString();
+}
+
+function formatDemand(demand, rating) {
+  if (typeof demand === 'string' && demand.includes('/')) return demand;
+  const num = rating !== undefined ? rating : (Number(demand) || 5);
+  return `${num}/10`;
 }
 
 function escapeHtml(str) {
@@ -396,70 +469,13 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-function switchView(targetViewId) {
-  document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-  const viewEl = document.getElementById(targetViewId);
-  if (viewEl) viewEl.classList.add('active');
-  const navMatch = document.querySelector(`.nav-btn[data-target="${targetViewId}"]`);
-  if (navMatch) navMatch.classList.add('active');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function setupNavigation() {
-  document.querySelectorAll('.nav-btn[data-target]').forEach(btn => {
-    btn.addEventListener('click', () => switchView(btn.dataset.target));
-  });
-  document.querySelectorAll('.footer-link[data-target]').forEach(link => {
-    link.addEventListener('click', e => {
-      e.preventDefault();
-      switchView(link.dataset.target);
-    });
-  });
-
-  const themeBtn = document.getElementById('theme-toggle-btn');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', toggleTheme);
-  }
-}
-
-function setupEventListeners() {
-  const searchInput = document.getElementById('pet-search');
-  if (searchInput) {
-    searchInput.addEventListener('input', e => {
-      appState.searchQuery = e.target.value.trim();
-      renderPetGrid();
-    });
-  }
-
-  const catContainer = document.getElementById('category-filters');
-  if (catContainer) {
-    catContainer.addEventListener('click', e => {
-      const pill = e.target.closest('.filter-pill');
-      if (!pill) return;
-      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      appState.activeCategory = pill.dataset.category;
-      renderPetGrid();
-    });
-  }
-
-  const sortSelect = document.getElementById('sort-select');
-  if (sortSelect) {
-    sortSelect.addEventListener('change', e => {
-      appState.sortMode = e.target.value;
-      renderPetGrid();
-    });
-  }
-}
-
 async function refreshDataSilently() {
   try {
     const res = await fetch('/api/get-data');
     const data = await res.json();
     appState.categories = data.categories || [];
     appState.pets = data.pets || [];
-    appState.updateLogs = data.updateLogs || [];
+    appState.updateLogs = (data.updateLogs || []).filter(l => !l.isPrivate);
     appState.settings = Object.assign({ gameBannerUrl: '', gameBannerEmoji: '🐾', activeUpdateBadge: 'Update 3: Haunted Island' }, data.settings || {});
     applySettings();
   } catch (err) {}
