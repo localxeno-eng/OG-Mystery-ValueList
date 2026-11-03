@@ -85,7 +85,11 @@ function dedupePets(petsList) {
 
 async function loadVaultData() {
   try {
-    const res = await fetch('/api/get-data');
+    const headers = {};
+    if (vaultState.sessionToken) {
+      headers['Authorization'] = `Bearer ${vaultState.sessionToken}`;
+    }
+    const res = await fetch('/api/get-data', { headers });
     const data = await res.json();
     vaultState.categories = data.categories || [];
     vaultState.pets = dedupePets(data.pets || []);
@@ -369,15 +373,26 @@ function renderLogsList() {
       <span class="log-section-badge log-section-badge-${sec.type}">${escapeHtml(sec.label || sec.type)}</span>
     `).join('');
 
+    const isPrivate = !!log.isPrivate;
+    const lockIcon = isPrivate ? '🔒' : '🔓';
+    const lockTitle = isPrivate ? 'Private (Click to Unprivate / Make Public)' : 'Public (Click to Private / Hide)';
+    const statusPill = isPrivate
+      ? `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;background:rgba(244,63,94,0.18);color:#f43f5e;margin-left:8px;border:1px solid rgba(244,63,94,0.3);">🔒 PRIVATE</span>`
+      : `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;background:rgba(52,211,153,0.15);color:#34d399;margin-left:8px;border:1px solid rgba(52,211,153,0.3);">PUBLIC</span>`;
+
     return `
-      <div class="log-admin-item">
+      <div class="log-admin-item" style="${isPrivate ? 'opacity:0.85;border-color:rgba(244,63,94,0.3);' : ''}">
         <div class="log-admin-meta">
-          <h4>${escapeHtml(log.title)}</h4>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+            <h4>${escapeHtml(log.title)}</h4>
+            ${statusPill}
+          </div>
           <div class="date">${escapeHtml(log.date)}${log.readTime ? ' • ' + escapeHtml(log.readTime) : ''}</div>
           ${log.summary ? `<p>${escapeHtml(log.summary)}</p>` : ''}
           <div class="log-section-badges">${sectionBadges}</div>
         </div>
         <div class="table-actions">
+          <button class="icon-btn" onclick="toggleLogPrivacy('${log.id}')" title="${lockTitle}" style="font-size:1rem;${isPrivate ? 'border-color:#f43f5e;background:rgba(244,63,94,0.1);' : 'border-color:#34d399;background:rgba(52,211,153,0.1);'}">${lockIcon}</button>
           <button class="icon-btn" onclick="shareLog('${log.slug || log.id}')" title="Copy share link">🔗</button>
           <button class="icon-btn" onclick="openEditLogModal('${log.id}')" title="Edit">✏️</button>
           <button class="icon-btn delete" onclick="deleteLog('${log.id}')" title="Delete">🗑️</button>
@@ -386,6 +401,15 @@ function renderLogsList() {
     `;
   }).join('');
 }
+
+window.toggleLogPrivacy = async function(logId) {
+  const log = vaultState.updateLogs.find(l => l.id === logId);
+  if (!log) return;
+  log.isPrivate = !log.isPrivate;
+  await saveVaultData();
+  renderLogsList();
+  showToast(log.isPrivate ? `"${log.title}" is now PRIVATE (hidden from public site).` : `"${log.title}" is now PUBLIC (visible on site).`);
+};
 
 function setupModals() {
   const backdrop = document.getElementById('modal-backdrop');
@@ -725,7 +749,8 @@ function openLogModal(logToEdit = null) {
     summary: '',
     readTime: '3 min read',
     slug: '',
-    bannerUrl: ''
+    bannerUrl: '',
+    isPrivate: false
   };
 
   const renderEditor = () => {
@@ -765,6 +790,13 @@ function openLogModal(logToEdit = null) {
         <input type="text" id="m-log-slug" class="form-input" value="${escapeHtml(logData.slug || '')}" placeholder="e.g. hell">
       </div>
 
+      <div class="form-group" style="padding:12px;background:var(--bg-surface-elevated);border-radius:10px;border:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="m-log-private" style="width:18px;height:18px;accent-color:var(--big-orange);cursor:pointer;" ${logData.isPrivate ? 'checked' : ''}>
+        <label for="m-log-private" style="margin:0;cursor:pointer;font-weight:600;font-size:0.9rem;">
+          🔒 Private Post (hidden from public site until unlocked)
+        </label>
+      </div>
+
       <div style="margin-top:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <label class="form-label" style="margin:0;">Content Sections</label>
@@ -794,6 +826,8 @@ function openLogModal(logToEdit = null) {
     collectSectionsFromDOM(sections);
     const rawSlug = document.getElementById('m-log-slug').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const bannerUrl = (document.getElementById('m-log-banner')?.value || '').trim();
+    const isPrivate = !!document.getElementById('m-log-private')?.checked;
+
     const updatedLog = {
       id: logData.id,
       title: document.getElementById('m-log-title').value.trim(),
@@ -802,6 +836,7 @@ function openLogModal(logToEdit = null) {
       summary: document.getElementById('m-log-summary').value.trim(),
       slug: rawSlug || logData.id,
       bannerUrl: bannerUrl,
+      isPrivate: isPrivate,
       sections: sections.filter(s => s.items.some(i => i.heading || i.body))
     };
 
